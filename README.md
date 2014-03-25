@@ -26,10 +26,10 @@ SNMP Usage
 The output MIB will be .1.3.6.1.4.1.8072.1.3.2.4.1.2.8.109.101.103.97.114.97.105.100
 
 and the outputs are :
-.1 megaraid = 0, no megaraid = 1
-.2 Healthy = 0, Unhealthy = 1
-.3 number of good arrays
-.4 number of bad arrays
-.5 number of good disks
-.6 number of bad disks
+* .1 megaraid = 0, no megaraid = 1
+* .2 Healthy = 0, Unhealthy = 1
+* .3 number of good arrays
+* .4 number of bad arrays
+* .5 number of good disks
+* .6 number of bad disks
 
