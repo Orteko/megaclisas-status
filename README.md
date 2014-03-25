@@ -7,9 +7,9 @@ Usage
 =================
 megaraid-status [--nagios|--snmp]
 
-no parameters : show megaraid info
---nagios : show nagios-friendly output
---snmp : show snmp MIB friendly output
+* no parameters : show megaraid info
+* --nagios : show nagios-friendly output
+* --snmp : show snmp MIB friendly output
 
 Nagios Usage
 =================
