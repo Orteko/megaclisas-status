@@ -7,11 +7,12 @@ import sys
 # default path for Debian
 binarypath = '/usr/sbin/megacli'
 
+# This doesn't work - yet
 # check for RHEL/CENTOS 64-bit
-if os.getenv('MACHTYPE') == 'x86_64-redhat-linux-gnu':
+#if os.getenv('MACHTYPE') == 'x86_64-redhat-linux-gnu':
     # Default path for RHEL and derivatives with
     # the MegaRAID RPM
-    binarypath = "/opt/MegaRAID/MegaCli/MegaCli64"
+#    binarypath = "/opt/MegaRAID/MegaCli/MegaCli64"
 
 # Adding a quick check to see if we're root, because on most cards I've tried this on
 # We need root access to query
