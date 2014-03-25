@@ -4,20 +4,26 @@ import os
 import re
 import sys
 
-binarypath = "/usr/sbin/megacli"
+binarypath = "/opt/MegaRAID/MegaCli/MegaCli64"
 
 # Adding a quick check to see if we're root, because on most cards I've tried this on
 # We need root access to query
 if __name__ == '__main__':
-    if os.getenv('USER') != 'root':
-        print 'You can only run this script as root or with sudo, sucks I know. Blame the RAID card'
+    username = os.getenv('USER')
+    # If we are running under snmpd, we don't get user info, so assume root if no username present
+    if username is None:
+        username='root'
+    if username != 'root':
+        print 'You can only run this script as root or with sudo, sucks I know. Blame the RAID card. User is ' + username
         sys.exit(5)
 
 if len(sys.argv) > 2:
-    print 'Usage: megaclisas-status [--nagios]'
+    print 'Usage: megaclisas-status [--nagios|--snmp]'
     sys.exit(1)
 
 nagiosmode = False
+snmpmode = False
+standardmode = True
 nagiosoutput = ''
 nagiosgoodarray = 0
 nagiosbadarray = 0
@@ -28,8 +34,12 @@ nagiosbaddisk = 0
 if len(sys.argv) > 1:
     if sys.argv[1] == '--nagios':
         nagiosmode = True
+	standardmode = False
+    elif sys.argv[1] == '--snmp':
+        snmpmode = True
+	standardmode = False
     else:
-        print 'Usage: megaclisas-status [--nagios]'
+        print 'Usage: megaclisas-status [--nagios | --snmp] '
         sys.exit(1)
 
 # Check binary exists (and +x), if not print an error message
@@ -39,6 +49,8 @@ if os.path.exists(binarypath) and os.access(binarypath, os.X_OK):
 else:
     if nagiosmode:
         print 'UNKNOWN - Cannot find ' + binarypath
+    elif snmpmode:
+        print '0'
     else:
         print 'Cannot find ' + binarypath + '. Please install it.'
     sys.exit(3)
@@ -66,7 +78,7 @@ def returnControllerModel(output):
     for line in output:
         if re.match(r'^Product Name.*$', line.strip()):
             return line.split(':')[1].strip()
-			
+            
 def returnControllerFirmware(output):
     for line in output:
         if re.match(r'^FW Package Build.*$', line.strip()):
@@ -160,7 +172,7 @@ controllernumber = returnControllerNumber(output)
 bad = False
 
 # List available controller
-if not nagiosmode:
+if standardmode:
     print '-- Controller informations --'
     print '-- ID | Model | Firmware'
     controllerid = 0
@@ -168,13 +180,13 @@ if not nagiosmode:
         cmd = '%s -AdpAllInfo -a%d -NoLog' % (binarypath, controllerid)
         output = getOutput(cmd)
         controllermodel = returnControllerModel(output)
-		firmwareversion = returnControllerFirmware(output)
+        firmwareversion = returnControllerFirmware(output)
         print 'c%d | %s | %s' % (controllerid, controllermodel, firmwareversion)
         controllerid += 1
     print ''
 
 controllerid = 0
-if not nagiosmode:
+if standardmode:
     print '-- Arrays informations --'
     print '-- ID | Type | Size | Status | InProgress'
 
@@ -188,7 +200,7 @@ while controllerid < controllernumber:
                                                 arrayid, controllerid)
         output = getOutput(cmd)
         arrayinfo = returnArrayInfo(output, controllerid, arrayid)
-        if not nagiosmode:
+        if standardmode:
             print ' | '.join(arrayinfo)
         if not arrayinfo[3] == 'Optimal':
             bad = True
@@ -197,10 +209,10 @@ while controllerid < controllernumber:
             nagiosgoodarray += 1
         arrayid += 1
     controllerid += 1
-if not nagiosmode:
+if standardmode:
     print ''
 
-if not nagiosmode:
+if standardmode:
     print '-- Disks informations'
     print '-- ID | Model | Status'
 
@@ -218,7 +230,7 @@ while controllerid < controllernumber:
             nagiosbaddisk += 1
         else:
             nagiosgooddisk += 1
-        if not nagiosmode:
+        if standardmode:
             print 'c%du%sp%s | %s | %s' % (controllerid, array[0],
                     array[1], array[3], array[2])
     controllerid += 1
@@ -231,6 +243,16 @@ if nagiosmode:
         sys.exit(2)
     else:
         print 'RAID OK - ' + status_line
+elif snmpmode:
+    print '1'
+    if bad:
+        print '1'
+    else:
+        print '0'
+    print nagiosgoodarray
+    print nagiosbadarray
+    print nagiosgooddisk
+    print nagiosbaddisk
 else:
     if bad:
         print '\nThere is at least one disk/array in a NOT OPTIMAL state.'
