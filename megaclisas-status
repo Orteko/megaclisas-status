@@ -4,15 +4,10 @@ import os
 import re
 import sys
 
-# default path for Debian
-binarypath = '/usr/sbin/megacli'
-
-# This doesn't work - yet
-# check for RHEL/CENTOS 64-bit
-#if os.getenv('MACHTYPE') == 'x86_64-redhat-linux-gnu':
-    # Default path for RHEL and derivatives with
-    # the MegaRAID RPM
-#    binarypath = "/opt/MegaRAID/MegaCli/MegaCli64"
+# default paths for debian/Ubuntu/etc, RHEL/CentOS/etc
+# Add another binary to the array to detect it on your platform
+binarypaths = [ '/usr/sbin/megacli', '/opt/MegaRAID/MegaCli/MegaCli64' ]
+binarypath = ''
 
 # Adding a quick check to see if we're root, because on most cards I've tried this on
 # We need root access to query
@@ -52,8 +47,10 @@ if len(sys.argv) > 1:
 
 # Check binary exists (and +x), if not print an error message
 # or return UNKNOWN nagios error code
-if os.path.exists(binarypath) and os.access(binarypath, os.X_OK):
-    pass
+for binarytestpath in binarypaths:
+    if os.path.exists(binarytestpath) and os.access(binarytestpath, os.X_OK):
+	    binarypath = binarytestpath
+            break
 else:
     if nagiosmode:
         print 'UNKNOWN - Cannot find ' + binarypath
