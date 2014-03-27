@@ -1,7 +1,10 @@
 megaclisas-status
 =================
 
-Original docs : http://hwraid.le-vert.net/wiki/DebianPackages
+This will perform health checks on a MegaRAID device using the proper binary for your platform. 
+
+Debian information on the binaries are here : http://hwraid.le-vert.net/wiki/DebianPackages
+Vendor provided binaries can be found here : http://www.lsi.com/Search/Pages/downloads.aspx?k=MegaCLI%20-%20Linux
 
 Usage
 =================
@@ -13,11 +16,12 @@ megaraid-status [--nagios|--snmp]
 
 Nagios Usage
 =================
-TBD
+You can find a plugin, with instructions, here : http://exchange.nagios.org/directory/Plugins/System-Metrics/Storage-Subsystem/Raid-Check-using-megaclisas/details
+
 
 SNMP Usage
 =================
-1. Install the MegaCLI Package
+1. Install the MegaCLI Package for your platform
 2. Copy this script to /usr/local/sbin and make it executable
 3. Add the following to snmp.conf : 
     extend megaraid /usr/local/sbin/megaclisas-status --snmp 
