@@ -226,8 +226,6 @@ if standardmode:
 controllerid = 0
 while controllerid < controllernumber:
     arrayid = 0
-    cmd = '%s -LDInfo -lall -a%d -NoLog' % (binarypath, controllerid)
-    output = getOutput(cmd)
     cmd = '%s -LdPdInfo -a%d -NoLog' % (binarypath, controllerid)
     output = getOutput(cmd)
     arraydisk = returnDiskInfo(output, controllerid)
