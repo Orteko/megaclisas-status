@@ -6,16 +6,17 @@ import sys
 
 # default paths for debian/Ubuntu/etc, RHEL/CentOS/etc
 # Add another binary to the array to detect it on your platform
-binarypaths = [ '/usr/sbin/megacli', '/opt/MegaRAID/MegaCli/MegaCli64' ]
+binarypaths = ['/usr/sbin/megacli', '/opt/MegaRAID/MegaCli/MegaCli64']
 binarypath = ''
 
 # Adding a quick check to see if we're root, because on most cards I've tried this on
 # We need root access to query
 if __name__ == '__main__':
     username = os.getenv('USER')
-    # If we are running under snmpd, we don't get user info, so assume root if no username present
+    # If we are running under snmpd, we don't get user info, so assume root if
+    # no username present
     if username is None:
-        username='root'
+        username = 'root'
     if username != 'root':
         print 'You can only run this script as root or with sudo, sucks I know. Blame the RAID card. User is ' + username
         sys.exit(5)
@@ -37,10 +38,10 @@ nagiosbaddisk = 0
 if len(sys.argv) > 1:
     if sys.argv[1] == '--nagios':
         nagiosmode = True
-	standardmode = False
+        standardmode = False
     elif sys.argv[1] == '--snmp':
         snmpmode = True
-	standardmode = False
+        standardmode = False
     else:
         print 'Usage: megaclisas-status [--nagios | --snmp] '
         sys.exit(1)
@@ -49,8 +50,8 @@ if len(sys.argv) > 1:
 # or return UNKNOWN nagios error code
 for binarytestpath in binarypaths:
     if os.path.exists(binarytestpath) and os.access(binarytestpath, os.X_OK):
-	    binarypath = binarytestpath
-            break
+        binarypath = binarytestpath
+        break
 else:
     if nagiosmode:
         print 'UNKNOWN - Cannot find ' + binarypath
@@ -83,7 +84,8 @@ def returnControllerModel(output):
     for line in output:
         if re.match(r'^Product Name.*$', line.strip()):
             return line.split(':')[1].strip()
-            
+
+
 def returnControllerFirmware(output):
     for line in output:
         if re.match(r'^FW Package Build.*$', line.strip()):
@@ -202,7 +204,7 @@ while controllerid < controllernumber:
     arraynumber = returnArrayNumber(output)
     while arrayid < int(arraynumber):
         cmd = '%s -LDInfo -l%d -a%d -NoLog' % (binarypath,
-                                                arrayid, controllerid)
+                                               arrayid, controllerid)
         output = getOutput(cmd)
         arrayinfo = returnArrayInfo(output, controllerid, arrayid)
         if standardmode:
@@ -237,12 +239,12 @@ while controllerid < controllernumber:
             nagiosgooddisk += 1
         if standardmode:
             print 'c%du%sp%s | %s | %s' % (controllerid, array[0],
-                    array[1], array[3], array[2])
+                                           array[1], array[3], array[2])
     controllerid += 1
 
 if nagiosmode:
     status_line = 'Arrays: OK:%d Bad:%d - Disks: OK:%d Bad:%d' % \
-                (nagiosgoodarray, nagiosbadarray, nagiosgooddisk, nagiosbaddisk)
+        (nagiosgoodarray, nagiosbadarray, nagiosgooddisk, nagiosbaddisk)
     if bad:
         print 'RAID ERROR - ' + status_line
         sys.exit(2)
