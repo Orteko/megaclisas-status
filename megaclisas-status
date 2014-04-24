@@ -111,12 +111,12 @@ def returnArrayInfo(output, controllerid, arrayid):
         line = line.strip()
         if re.match(r'Number Of Drives\s*((per span))?:.*[0-9]+$', line):
             ldpdcount = line.split(':')[1].strip()
-        if re.match(r'Span Depth *:.*[0-9]+$', line):
+        elif re.match(r'Span Depth *:.*[0-9]+$', line):
             spandepth = line.split(':')[1].strip()
-        if re.match(r'^RAID Level\s*:.*$', line):
+        elif re.match(r'^RAID Level\s*:.*$', line):
             raidlevel = line.split(':')[1].split(',')[0].split('-')[1].strip()
             raid_type = 'RAID' + raidlevel
-        if re.match(r'^Size\s*:.*$', line):
+        elif re.match(r'^Size\s*:.*$', line):
             # Size reported in MB
             if re.match(r'^.*MB$', line.split(':')[1]):
                 size = line.split(':')[1].strip('MB').strip()
@@ -129,9 +129,9 @@ def returnArrayInfo(output, controllerid, arrayid):
             else:
                 size = line.split(':')[1].strip('GB').strip()
                 size = str(int(round((float(size))))) + 'G'
-        if re.match(r'^State\s*:.*$', line):
+        elif re.match(r'^State\s*:.*$', line):
             state = line.split(':')[1].strip()
-        if re.match(r'^Ongoing Progresses\s*:.*$', line):
+        elif re.match(r'^Ongoing Progresses\s*:.*$', line):
             operationlinennumber = linenumber
         linenumber += 1
         if operationlinennumber:
