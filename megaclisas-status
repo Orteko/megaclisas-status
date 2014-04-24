@@ -157,12 +157,12 @@ def returnDiskInfo(output, controllerid):
         line = line.strip()
         if re.match(r'^Virtual (Disk|Drive): [0-9]+.*$', line):
             arrayid = line.split('(')[0].split(':')[1].strip()
-        if re.match(r'Firmware state: .*$', line):
+        elif re.match(r'Firmware state: .*$', line):
             state = line.split(':')[1].strip()
-        if re.match(r'Inquiry Data: .*$', line):
+        elif re.match(r'Inquiry Data: .*$', line):
             model = line.split(':')[1].strip()
             model = re.sub(' +', ' ', model)
-        if re.match(r'PD: [0-9]+ Information.*$', line):
+        elif re.match(r'PD: [0-9]+ Information.*$', line):
             diskid = line.split()[1].strip()
 
         if arrayid and state != 'undef' and model != 'undef' and diskid:
