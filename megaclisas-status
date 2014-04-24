@@ -180,7 +180,7 @@ bad = False
 
 # List available controller
 if standardmode:
-    print '-- Controller informations --'
+    print '-- Controller information --'
     print '-- ID | Model | Firmware'
     controllerid = 0
     while controllerid < controllernumber:
@@ -194,7 +194,7 @@ if standardmode:
 
 controllerid = 0
 if standardmode:
-    print '-- Arrays informations --'
+    print '-- Array information --'
     print '-- ID | Type | Size | Status | InProgress'
 
 while controllerid < controllernumber:
@@ -220,7 +220,7 @@ if standardmode:
     print ''
 
 if standardmode:
-    print '-- Disks informations'
+    print '-- Disk information --'
     print '-- ID | Model | Status'
 
 controllerid = 0
