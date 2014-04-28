@@ -1,264 +1,297 @@
 #!/usr/bin/python
+'''LSI MegaCLI RAID status tool.
 
+Usage:
+    megaclisas-status [--nagios | --snmp | -q]
+
+Options:
+    --nagios    Format output suitable for nagios.
+    --snmp      Format output for SNMP.
+    -q          Quiet mode, only displays output if an array or disk is bad -
+                intended for use from cron.
+
+Known issues:
+ - MegaCLI return codes can not be trusted which makes it difficult to detect
+   errors in its output.
+ - Not yet tested with multiple adapters.
+'''
 import os
+import subprocess
+import argparse
 import re
 import sys
 
 # default paths for debian/Ubuntu/etc, RHEL/CentOS/etc
 # Add another binary to the array to detect it on your platform
-binarypaths = ['/usr/sbin/megacli', '/opt/MegaRAID/MegaCli/MegaCli64']
-binarypath = ''
-
-# Adding a quick check to see if we're root, because on most cards I've tried this on
-# We need root access to query
-if __name__ == '__main__':
-    username = os.getenv('USER')
-    # If we are running under snmpd, we don't get user info, so assume root if
-    # no username present
-    if username is None:
-        username = 'root'
-    if username != 'root':
-        print 'You can only run this script as root or with sudo, sucks I know. Blame the RAID card. User is ' + username
-        sys.exit(5)
-
-if len(sys.argv) > 2:
-    print 'Usage: megaclisas-status [--nagios|--snmp]'
-    sys.exit(1)
-
-nagiosmode = False
-snmpmode = False
-standardmode = True
-nagiosoutput = ''
-nagiosgoodarray = 0
-nagiosbadarray = 0
-nagiosgooddisk = 0
-nagiosbaddisk = 0
-
-# Check command line arguments to enable nagios or not
-if len(sys.argv) > 1:
-    if sys.argv[1] == '--nagios':
-        nagiosmode = True
-        standardmode = False
-    elif sys.argv[1] == '--snmp':
-        snmpmode = True
-        standardmode = False
-    else:
-        print 'Usage: megaclisas-status [--nagios | --snmp] '
-        sys.exit(1)
-
-# Check binary exists (and +x), if not print an error message
-# or return UNKNOWN nagios error code
-for binarytestpath in binarypaths:
-    if os.path.exists(binarytestpath) and os.access(binarytestpath, os.X_OK):
-        binarypath = binarytestpath
-        break
-else:
-    if nagiosmode:
-        print 'UNKNOWN - Cannot find ' + binarypath
-    elif snmpmode:
-        print '0'
-    else:
-        print 'Cannot find ' + binarypath + '. Please install it.'
-    sys.exit(3)
+BINARYPATHS = ['/usr/sbin/megacli', '/opt/MegaRAID/MegaCli/MegaCli64']
+BINARYPATH = ''
 
 
-# Get command output
-def getOutput(cmd):
-    output = os.popen(cmd)
-    lines = []
-    for line in output:
-        line = line.strip()
-        if not re.match(r'^$', line):
-            lines.append(line)
+def get_output(cmd):
+    try:
+        process = subprocess.Popen(cmd.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = process.communicate()
+        retcode = process.poll()
+    except OSError as e:
+        sys.exit('Failed to run %s, command returned %s.' % (cmd, str(e)))
+
+    return (stdout, stderr, retcode)
+
+
+def get_megacli_output(arguments):
+    '''Run the specified megacli command and return stdout as a list.
+
+    Lines returned are stripped and empty lines removed.
+
+    Note that the return codes from megacli can not be trusted to be POSIX
+    compatible - for a number of commands that complete successfully it will
+    exit 1!
+    '''
+
+    cmd = BINARYPATH + ' ' + arguments
+    stdout, stderr, retcode = get_output(cmd)
+    lines = filter(None, [line.strip() for line in stdout.split('\n')])
+
+    # Idiotic, however this seems to be the only way to get vaguely reasonable
+    # error output from megacli
+    if stderr and retcode != 0:
+        sys.exit('Failed to run "%s", command returned %s.' % (cmd, stderr.strip()))
+
     return lines
 
 
-def returnControllerNumber(output):
-    for line in output:
-        line = line.strip()
+def get_line_value(line, chars=None):
+    return line.split(':')[1].strip(chars)
+
+
+def get_number_of_controllers():
+    for line in get_megacli_output('-adpCount -NoLog'):
         if re.match(r'^Controller Count.*$', line):
-            return int(line.split(':')[1].strip().strip('.'))
+            return int(get_line_value(line, ' .'))
 
 
-def returnControllerModel(output):
+def get_number_of_arrays(controller_id):
+    # @todo how does this work with multiple adapters?
+    for line in get_megacli_output('-LdGetNum -a%d -NoLog' % controller_id):
+        if re.match(r'^Number of Virtual (Disk|Drive).*$', line):
+            return int(get_line_value(line))
+    return 0
+
+
+def get_controller_info(controller_id):
+    for line in get_megacli_output('-AdpAllInfo -a%d -NoLog' % controller_id):
+        if re.match(r'^Product Name.*$', line):
+            model = get_line_value(line)
+        elif re.match(r'^FW Package Build.*$', line):
+            firmware_version = get_line_value(line)
+
+    return model, firmware_version
+
+
+def get_array_info(controller_id, array_id):
+    _id = 'c%du%d' % (controller_id, array_id)
+    line_number = 0
+    ldpd_count = 0
+    span_depth = 0
+    in_progress = 'None'
+
+    output = get_megacli_output('-LDInfo -l%d -a%d -NoLog' % (array_id, controller_id))
+
     for line in output:
-        if re.match(r'^Product Name.*$', line.strip()):
-            return line.split(':')[1].strip()
-
-
-def returnControllerFirmware(output):
-    for line in output:
-        if re.match(r'^FW Package Build.*$', line.strip()):
-            return line.split(':')[1].strip()
-
-
-def returnArrayNumber(output):
-    i = 0
-    for line in output:
-        if re.match(r'^Number of Virtual (Disk|Drive).*$', line.strip()):
-            i = line.split(':')[1].strip()
-    return i
-
-
-def returnArrayInfo(output, controllerid, arrayid):
-    _id = 'c%du%d' % (controllerid, arrayid)
-    operationlinennumber = False
-    linenumber = 0
-    ldpdcount = 0
-    spandepth = 0
-
-    for line in output:
-        line = line.strip()
         if re.match(r'Number Of Drives\s*((per span))?:.*[0-9]+$', line):
-            ldpdcount = line.split(':')[1].strip()
+            ldpd_count = get_line_value(line)
         elif re.match(r'Span Depth *:.*[0-9]+$', line):
-            spandepth = line.split(':')[1].strip()
+            span_depth = get_line_value(line)
         elif re.match(r'^RAID Level\s*:.*$', line):
-            raidlevel = line.split(':')[1].split(',')[0].split('-')[1].strip()
-            raid_type = 'RAID' + raidlevel
+            raid_level = line.split(':')[1].split(',')[0].split('-')[1].strip()
+            raid_type = 'RAID' + raid_level
         elif re.match(r'^Size\s*:.*$', line):
+            size = get_line_value(line)
             # Size reported in MB
-            if re.match(r'^.*MB$', line.split(':')[1]):
-                size = line.split(':')[1].strip('MB').strip()
+            if re.match(r'^.*MB$', size):
+                size = size.strip(' MB')
                 size = str(int(round((float(size) / 1000)))) + 'G'
             # Size reported in TB
-            elif re.match(r'^.*TB$', line.split(':')[1]):
-                size = line.split(':')[1].strip('TB').strip()
+            elif re.match(r'^.*TB$', size):
+                size = size.strip(' TB')
                 size = str(int(round((float(size) * 1000)))) + 'G'
             # Size reported in GB (default)
             else:
-                size = line.split(':')[1].strip('GB').strip()
+                size = size.strip(' GB')
                 size = str(int(round((float(size))))) + 'G'
         elif re.match(r'^State\s*:.*$', line):
-            state = line.split(':')[1].strip()
+            state = get_line_value(line)
         elif re.match(r'^Ongoing Progresses\s*:.*$', line):
-            operationlinennumber = linenumber
-        linenumber += 1
-        if operationlinennumber:
-            inprogress = output[operationlinennumber + 1]
-        else:
-            inprogress = 'None'
+            # @todo matches original behaviour, not sure if it is correct
+            # however?
+            in_progress = output[line_number + 1]
 
-    if ldpdcount and (int(spandepth) > 1):
-        ldpdcount = int(ldpdcount) * int(spandepth)
-        if int(raidlevel) < 10:
+        line_number += 1
+
+    if ldpd_count and (int(span_depth) > 1):
+        ldpd_count = int(ldpd_count) * int(span_depth)
+        if int(raid_level) < 10:
             raid_type = raid_type + "0"
 
-    return [_id, raid_type, size, state, inprogress]
+    return (_id, raid_type, size, state, in_progress)
 
 
-def returnDiskInfo(output, controllerid):
-    arrayid = False
-    diskid = False
+def get_disk_info(controller_id):
+    # @todo Surely there has to be a way to get this on a per controller/array
+    # combination
+    array_id = False
+    disk_id = False
     table = []
     state = 'undef'
     model = 'undef'
-    for line in output:
-        line = line.strip()
-        if re.match(r'^Virtual (Disk|Drive): [0-9]+.*$', line):
-            arrayid = line.split('(')[0].split(':')[1].strip()
-        elif re.match(r'Firmware state: .*$', line):
-            state = line.split(':')[1].strip()
-        elif re.match(r'Inquiry Data: .*$', line):
-            model = line.split(':')[1].strip()
-            model = re.sub(' +', ' ', model)
-        elif re.match(r'PD: [0-9]+ Information.*$', line):
-            diskid = line.split()[1].strip()
 
-        if arrayid and state != 'undef' and model != 'undef' and diskid:
-            table.append([str(arrayid), str(diskid), state, model])
+    for line in get_megacli_output('-LdPdInfo -a%d -NoLog' % controller_id):
+        if re.match(r'^Virtual (Disk|Drive): [0-9]+.*$', line):
+            array_id = line.split('(')[0].split(':')[1].strip()
+        elif re.match(r'Firmware state: .*$', line):
+            state = get_line_value(line)
+        elif re.match(r'Inquiry Data: .*$', line):
+            model = re.sub(' +', ' ', get_line_value(line))
+        elif re.match(r'PD: [0-9]+ Information.*$', line):
+            disk_id = line.split()[1].strip()
+
+        if array_id and state != 'undef' and model != 'undef' and disk_id:
+            table.append((int(array_id), int(disk_id), state, model))
             state = 'undef'
             model = 'undef'
 
     return table
 
-cmd = binarypath + ' -adpCount -NoLog'
-output = getOutput(cmd)
-controllernumber = returnControllerNumber(output)
 
-bad = False
-
-# List available controller
-if standardmode:
+def display_standard(data, bad):
     print '-- Controller information --'
     print '-- ID | Model | Firmware'
-    controllerid = 0
-    while controllerid < controllernumber:
-        cmd = '%s -AdpAllInfo -a%d -NoLog' % (binarypath, controllerid)
-        output = getOutput(cmd)
-        controllermodel = returnControllerModel(output)
-        firmwareversion = returnControllerFirmware(output)
-        print 'c%d | %s | %s' % (controllerid, controllermodel, firmwareversion)
-        controllerid += 1
-    print ''
 
-controllerid = 0
-if standardmode:
+    for controller_id in data:
+        controller_model, firmware_version = get_controller_info(controller_id)
+        print 'c%d | %s | %s' % (controller_id, controller_model, firmware_version)
+
+    print ''
     print '-- Array information --'
     print '-- ID | Type | Size | Status | InProgress'
 
-while controllerid < controllernumber:
-    arrayid = 0
-    cmd = '%s -LdGetNum -a%d -NoLog' % (binarypath, controllerid)
-    output = getOutput(cmd)
-    arraynumber = returnArrayNumber(output)
-    while arrayid < int(arraynumber):
-        cmd = '%s -LDInfo -l%d -a%d -NoLog' % (binarypath,
-                                               arrayid, controllerid)
-        output = getOutput(cmd)
-        arrayinfo = returnArrayInfo(output, controllerid, arrayid)
-        if standardmode:
-            print ' | '.join(arrayinfo)
-        if not arrayinfo[3] == 'Optimal':
-            bad = True
-            nagiosbadarray += 1
-        else:
-            nagiosgoodarray += 1
-        arrayid += 1
-    controllerid += 1
-if standardmode:
-    print ''
+    for controller_id in data:
+        for array_id in data[controller_id]:
+            print ' | '.join(data[controller_id][array_id]['details'])
 
-if standardmode:
+    print ''
     print '-- Disk information --'
     print '-- ID | Model | Status'
 
-controllerid = 0
-while controllerid < controllernumber:
-    arrayid = 0
-    cmd = '%s -LdPdInfo -a%d -NoLog' % (binarypath, controllerid)
-    output = getOutput(cmd)
-    arraydisk = returnDiskInfo(output, controllerid)
-    for array in arraydisk:
-        if not array[2] == 'Online' and not array[2] == 'Online, Spun Up':
-            bad = True
-            nagiosbaddisk += 1
-        else:
-            nagiosgooddisk += 1
-        if standardmode:
-            print 'c%du%sp%s | %s | %s' % (controllerid, array[0],
-                                           array[1], array[3], array[2])
-    controllerid += 1
+    for controller_id in data:
+        for array_id in data[controller_id]:
+            for disk in data[controller_id][array_id]['disks']:
+                print 'c%du%dp%d | %s | %s' % (controller_id, disk[0],
+                                               disk[1], disk[3], disk[2])
 
-if nagiosmode:
-    status_line = 'Arrays: OK:%d Bad:%d - Disks: OK:%d Bad:%d' % \
-        (nagiosgoodarray, nagiosbadarray, nagiosgooddisk, nagiosbaddisk)
-    if bad:
-        print 'RAID ERROR - ' + status_line
-        sys.exit(2)
-    else:
-        print 'RAID OK - ' + status_line
-elif snmpmode:
-    print '1'
-    if bad:
-        print '1'
-    else:
-        print '0'
-    print nagiosgoodarray
-    print nagiosbadarray
-    print nagiosgooddisk
-    print nagiosbaddisk
-else:
     if bad:
         print '\nThere is at least one disk/array in a NOT OPTIMAL state.'
         sys.exit(1)
+
+
+def display_nagios(good_arrays, bad_arrays, good_disks, bad_disks, bad):
+    status_line = 'Arrays: OK:%d Bad:%d - Disks: OK:%d Bad:%d' % \
+        (good_arrays, bad_arrays, good_disks, bad_disks)
+
+    if bad:
+        print 'RAID ERROR - ' + status_line
+        sys.exit(2)
+
+    print 'RAID OK - ' + status_line
+
+
+def display_snmp(good_arrays, bad_arrays, good_disks, bad_disks, bad):
+    print '1%d%d%d%d%d' % (int(bad), good_arrays, bad_arrays, good_disks, bad_disks)
+
+
+def get_raid_status():
+    data = {}
+    controller_id = 0
+    good_arrays = 0
+    bad_arrays = 0
+    good_disks = 0
+    bad_disks = 0
+
+    while controller_id < get_number_of_controllers():
+        data[controller_id] = {}
+        array_id = 0
+
+        if array_id not in data[controller_id]:
+            data[controller_id][array_id] = {'disks': []}
+
+        # Populate array details
+        while array_id < get_number_of_arrays(controller_id):
+            array_details = get_array_info(controller_id, array_id)
+            data[controller_id][array_id]['details'] = array_details
+
+            if array_details[3] == 'Optimal':
+                good_arrays += 1
+            else:
+                bad_arrays += 1
+
+            array_id += 1
+
+        # Populate disk information
+        for disk in get_disk_info(controller_id):
+            data[controller_id][disk[0]]['disks'].append(disk)
+
+            if disk[2] in ('Online', 'Online, Spun Up'):
+                good_disks += 1
+            else:
+                bad_disks += 1
+
+        controller_id += 1
+
+    return data, good_arrays, bad_arrays, good_disks, bad_disks
+
+
+if __name__ == '__main__':
+    # If we are running under snmpd, we don't get user info, so assume root if
+    # no username present
+    username = os.getenv('USER') if os.getenv('USER') else 'root'
+
+    # Adding a quick check to see if we're root, because on most cards I've
+    # tried this on We need root access to query
+    # @todo replace or augment this - what about users in wheel/adm groups?
+    if username != 'root':
+        print 'You can only run this script as root or with sudo, sucks I know. Blame the RAID card. User is ' + username
+        sys.exit(5)
+
+    parser = argparse.ArgumentParser(description='LSI MegaCLI RAID status tool.')
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--nagios', help='Format output suitable for nagios.', action='store_true')
+    group.add_argument('--snmp', help='Format output suitable for SNMP.', action='store_true')
+    group.add_argument('-q', '--quiet', help='Quiet mode, only displays output if an array or disk is bad - intended for use from cron (not applicable to nagios or snmp mode).', action='store_true')
+    args = parser.parse_args()
+
+    # Check binary exists (and +x), if not print an error message
+    # or return UNKNOWN nagios error code
+    for binarytestpath in BINARYPATHS:
+        if os.path.exists(binarytestpath) and os.access(binarytestpath, os.X_OK):
+            BINARYPATH = binarytestpath
+            break
+    else:
+        if args.nagios:
+            print 'UNKNOWN - Cannot find ' + BINARYPATH
+        elif args.snmp:
+            print '0'
+        else:
+            print 'Cannot find ' + BINARYPATH + '. Please install it.'
+        sys.exit(3)
+
+    data, good_arrays, bad_arrays, good_disks, bad_disks = get_raid_status()
+    bad = True if bad_arrays or bad_disks else False
+
+    if args.nagios:
+        display_nagios(good_arrays, bad_arrays, good_disks, bad_disks, bad)
+    elif args.snmp:
+        display_snmp(good_arrays, bad_arrays, good_disks, bad_disks, bad)
+    elif bad:
+        display_standard(data, bad)
+    elif not args.quiet:
+        display_standard(data, bad)
