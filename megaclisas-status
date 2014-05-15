@@ -291,7 +291,5 @@ if __name__ == '__main__':
         display_nagios(good_arrays, bad_arrays, good_disks, bad_disks, bad)
     elif args.snmp:
         display_snmp(good_arrays, bad_arrays, good_disks, bad_disks, bad)
-    elif bad:
-        display_standard(data, bad)
-    elif not args.quiet:
+    elif bad or not args.quiet:
         display_standard(data, bad)
