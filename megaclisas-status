@@ -221,11 +221,11 @@ def get_raid_status():
         data[controller_id] = {}
         array_id = 0
 
-        if array_id not in data[controller_id]:
-            data[controller_id][array_id] = {'disks': []}
-
         # Populate array details
         while array_id < get_number_of_arrays(controller_id):
+            if array_id not in data[controller_id]:
+                data[controller_id][array_id] = {'disks': []}
+            
             array_details = get_array_info(controller_id, array_id)
             data[controller_id][array_id]['details'] = array_details
 
