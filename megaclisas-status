@@ -94,6 +94,7 @@ def get_array_info(controller_id, array_id):
     ldpd_count = 0
     span_depth = 0
     in_progress = 'None'
+    cachecade_info = 'None'
 
     output = get_megacli_output('-LDInfo -l%d -a%d -NoLog' % (array_id, controller_id))
 
@@ -125,6 +126,13 @@ def get_array_info(controller_id, array_id):
             # @todo matches original behaviour, not sure if it is correct
             # however?
             in_progress = output[line_number + 1]
+        elif re.match(r'Cache Cade Type\s*:.*$', line):
+            cachecade_info = "Type : %s" %(get_line_value(line))
+        elif re.match(r'^Target Id of the Associated LDs\s*:.*$', line):
+            associated=[]
+            for array in line.split(':')[1].strip().split(','):
+                associated.append('c%du%d' % (controller_id, array_id))
+            cachecade_info = "Associated : %s" %(', '.join(associated))
 
         line_number += 1
 
@@ -133,7 +141,7 @@ def get_array_info(controller_id, array_id):
         if int(raid_level) < 10:
             raid_type = raid_type + "0"
 
-    return (_id, raid_type, size, state, in_progress)
+    return (_id, raid_type, size, state, in_progress, cachecade_info)
 
 
 def get_disk_info(controller_id):
@@ -146,7 +154,7 @@ def get_disk_info(controller_id):
     model = 'undef'
 
     for line in get_megacli_output('-LdPdInfo -a%d -NoLog' % controller_id):
-        if re.match(r'^Virtual (Disk|Drive): [0-9]+.*$', line):
+        if re.match(r'^(CacheCade )?Virtual (Disk|Drive): [0-9]+.*$', line):
             array_id = line.split('(')[0].split(':')[1].strip()
         elif re.match(r'Firmware state: .*$', line):
             state = get_line_value(line)
@@ -173,7 +181,7 @@ def display_standard(data, bad):
 
     print ''
     print '-- Array information --'
-    print '-- ID | Type | Size | Status | InProgress'
+    print '-- ID | Type | Size | Status | InProgress | CacheCade Info'
 
     for controller_id in data:
         for array_id in data[controller_id]:
@@ -221,11 +229,11 @@ def get_raid_status():
         data[controller_id] = {}
         array_id = 0
 
-        if array_id not in data[controller_id]:
-            data[controller_id][array_id] = {'disks': []}
-
         # Populate array details
         while array_id < get_number_of_arrays(controller_id):
+            if array_id not in data[controller_id]:
+                data[controller_id][array_id] = {'disks': []}
+            
             array_details = get_array_info(controller_id, array_id)
             data[controller_id][array_id]['details'] = array_details
 
