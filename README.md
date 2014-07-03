@@ -13,6 +13,7 @@ megaraid-status [--nagios|--snmp]
 * no parameters : show megaraid info
 * --nagios : show nagios-friendly output
 * --snmp : show snmp MIB friendly output
+* -q : Quiet mode, only displays output if an array or disk is bad - intended for use from cron.
 
 Nagios Usage
 =================
