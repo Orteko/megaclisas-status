@@ -70,12 +70,11 @@ def get_number_of_controllers():
             return int(get_line_value(line, ' .'))
 
 
-def get_number_of_arrays(controller_id):
-    # @todo how does this work with multiple adapters?
-    for line in get_megacli_output('-LdGetNum -a%d -NoLog' % controller_id):
-        if re.match(r'^Number of Virtual (Disk|Drive).*$', line):
-            return int(get_line_value(line))
-    return 0
+def get_arrays(controller_id):
+    for line in get_megacli_output('-LDInfo -Lall -a%d -NoLog' % controller_id):
+        m = re.match(r'^Virtual (Disk|Drive): (\d+).*$', line)
+        if m:
+            yield int(m.group(2))
 
 
 def get_controller_info(controller_id):
@@ -89,6 +88,8 @@ def get_controller_info(controller_id):
 
 
 def get_array_info(controller_id, array_id):
+    # @TODO - Merge this with get_arrays to avoid requesting the same data
+    # twice.
     _id = 'c%du%d' % (controller_id, array_id)
     line_number = 0
     ldpd_count = 0
@@ -227,12 +228,17 @@ def get_raid_status():
 
     while controller_id < get_number_of_controllers():
         data[controller_id] = {}
-        array_id = 0
 
         # Populate array details
-        while array_id < get_number_of_arrays(controller_id):
-            if array_id not in data[controller_id]:
-                data[controller_id][array_id] = {'disks': []}
+        #
+        # @TODO - Merge get_arrays and get_array_info.
+        #
+        # The megacli command in get_arrays will return all the info we need.
+        #
+        # We should parse the data at that point rather than making another
+        # call to get the same info via get_array_info.
+        for array_id in get_arrays(controller_id):
+            data[controller_id][array_id] = {'disks': []}
 
             array_details = get_array_info(controller_id, array_id)
             data[controller_id][array_id]['details'] = array_details
@@ -241,8 +247,6 @@ def get_raid_status():
                 good_arrays += 1
             else:
                 bad_arrays += 1
-
-            array_id += 1
 
         # Populate disk information
         for disk in get_disk_info(controller_id):
