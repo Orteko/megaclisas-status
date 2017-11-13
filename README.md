@@ -11,7 +11,7 @@ Note that the MegaCLI package is only available as an RPM so you will need to us
 
 
 Usage
-=================
+-----
 
 megaclisas-status [--nagios | --snmp | -q]
 
@@ -20,13 +20,25 @@ megaclisas-status [--nagios | --snmp | -q]
 * --snmp: show snmp MIB friendly output
 * -q: Quiet mode, only displays output if an array or disk is bad - intended for use from cron.
 
-Nagios Usage
-=================
+
+Cron Setup
+----------
+
+{opulate a cron job as follows to check any found array at 1AM every morning, this will only raise output if issues are found:
+
+    # /etc/cron.d/megaclisas-status
+    # Check raid status
+    0 1 * * * root /usr/local/sbin/megaclisas-status -q
+
+
+Nagios Setup
+------------
 
 You can find a plugin, with instructions, here: http://exchange.nagios.org/directory/Plugins/System-Metrics/Storage-Subsystem/Raid-Check-using-megaclisas/details
 
-SNMP Usage
-=================
+
+SNMP Setup
+----------
 
 1. Install the MegaCLI Package for your platform
 2. Copy this script to /usr/local/sbin and make it executable
