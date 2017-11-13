@@ -24,7 +24,7 @@ megaclisas-status [--nagios | --snmp | -q]
 Cron Setup
 ----------
 
-{opulate a cron job as follows to check any found array at 1AM every morning, this will only raise output if issues are found:
+Populate a cron job as follows to check any found array at 1AM every morning, this will only raise output if issues are found:
 
     # /etc/cron.d/megaclisas-status
     # Check raid status
