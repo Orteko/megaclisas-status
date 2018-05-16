@@ -78,11 +78,17 @@ def get_arrays(controller_id):
 
 
 def get_controller_info(controller_id):
+    '''Retrieve the basic controller details'''
+    model = None
+    firmware_version = None
+
     for line in get_megacli_output('-AdpAllInfo -a%d -NoLog' % controller_id):
         if re.match(r'^Product Name.*$', line):
             model = get_line_value(line)
         elif re.match(r'^FW Package Build.*$', line):
             firmware_version = get_line_value(line)
+        elif model and firmware_version:
+            break
 
     return model, firmware_version
 
