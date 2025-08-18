@@ -55,3 +55,26 @@ and the outputs are:
 * .4 number of bad arrays
 * .5 number of good disks
 * .6 number of bad disks
+
+
+Obtaining MegaCLI
+-----------------
+
+MegaCLI can be obtained from https://docs.broadcom.com/docs-and-downloads/raid-controllers/raid-controllers-common-files/8-07-14_MegaCLI.zip
+
+For installation on modern ubuntu systems, do the following:
+
+```
+unzip 8-07-14_MegaCLI.zip
+cd Linux
+sudo alien MegaCli-8.07.14-1.noarch.rpm
+sudo dpkg -i megacli_8.07.14-2_all.deb
+```
+
+Note that this requires libncurses5 which isn't available in Ubuntu 24.04 or later.
+
+As a workaround, simply symlinking the older name works in this instance as
+whatever MegaCLI is using still seems to have a compatible interface:
+```
+sudo ln -s /usr/lib/x86_64-linux-gnu/libncursesw.so.6 /usr/lib/x86_64-linux-gnu/libncurses.so.5
+```
